@@ -7,9 +7,24 @@ const crypto = require('crypto');
 // 自己实现 WebSocket 协议（RFC 6455），不依赖任何第三方包
 
 const server = http.createServer((req, res) => {
-  let filePath = path.join(__dirname, 'public', req.url === '/' ? 'index.html' : req.url);
+  // 修复：直接从根目录读取，不再拼接 'public'
+  let urlPath = req.url.split('?')[0]; // 去掉查询参数
+  let filePath = path.join(__dirname, urlPath === '/' ? 'index.html' : urlPath);
+
+  // 防止路径穿越攻击
+  if (!filePath.startsWith(__dirname)) {
+    res.writeHead(403); res.end('Forbidden'); return;
+  }
+
   const ext = path.extname(filePath);
-  const contentTypes = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
+  const contentTypes = {
+    '.html': 'text/html',
+    '.js': 'text/javascript',
+    '.css': 'text/css',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.ico': 'image/x-icon'
+  };
   const contentType = contentTypes[ext] || 'text/plain';
 
   fs.readFile(filePath, (err, data) => {
@@ -73,7 +88,7 @@ WSConnection.prototype._processBuffer = function() {
     let maskingKey;
     if (masked) { maskingKey = buf.slice(offset, offset + 4); offset += 4; }
 
-    if (buf.length < offset + payloadLen) break; // 数据不够
+    if (buf.length < offset + payloadLen) break;
 
     let payload = buf.slice(offset, offset + payloadLen);
     if (masked) {
@@ -82,15 +97,15 @@ WSConnection.prototype._processBuffer = function() {
 
     this.buffer = buf.slice(offset + payloadLen);
 
-    if (opcode === 0x01) { // 文本帧
+    if (opcode === 0x01) {
       this.onmessage && this.onmessage(payload.toString('utf8'));
-    } else if (opcode === 0x08) { // 关闭帧
+    } else if (opcode === 0x08) {
       this.readyState = 3;
       this.onclose && this.onclose();
       this.socket.end();
       return;
-    } else if (opcode === 0x09) { // ping
-      this._sendFrame(0x0a, payload); // pong
+    } else if (opcode === 0x09) {
+      this._sendFrame(0x0a, payload);
     }
   }
 };
