@@ -1,0 +1,12 @@
+{
+  "name": "chat-room",
+  "version": "1.0.0",
+  "description": "零依赖联网聊天室 - Node.js 原生 WebSocket",
+  "main": "chat-server.js",
+  "scripts": {
+    "start": "node chat-server.js"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}
