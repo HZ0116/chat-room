@@ -117,7 +117,6 @@
             margin-top: 12px;
             min-height: 20px;
         }
-
         /* ========== 主界面 ========== */
         #app {
             display: none;
@@ -262,7 +261,6 @@
             color: rgba(255, 255, 255, 0.4);
             font-weight: 400;
         }
-
         .chat-messages {
             flex: 1;
             overflow-y: auto;
@@ -382,4 +380,708 @@
         }
 
         .chat-input-area .btn:hover {
-            trans
+            transform: scale(1.02);
+        }
+
+        .chat-input-area .btn:active {
+            transform: scale(0.97);
+        }
+        /* ========== 游戏区 ========== */
+        .game-panel {
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            padding: 16px 20px;
+            min-height: 120px;
+            max-height: 360px;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .game-panel::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .game-panel::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 2px;
+        }
+
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .game-header .title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .game-controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .game-controls .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #fff;
+        }
+
+        .btn-start-zjh {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .btn-start-pdk {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        .btn-start-zjh:hover,
+        .btn-start-pdk:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-game-action {
+            background: rgba(255, 255, 255, 0.12);
+            color: #fff;
+        }
+
+        .btn-game-action:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-game-action.primary {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        }
+
+        .btn-game-action.danger {
+            background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+        }
+
+        .game-status {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 14px;
+            padding: 8px 0;
+        }
+
+        .game-players {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+
+        .game-player {
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 12px;
+            padding: 10px 14px;
+            min-width: 100px;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .game-player.current {
+            border-color: #ffd700;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.15);
+        }
+
+        .game-player .p-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .game-player .p-status {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .game-player .p-cards {
+            display: flex;
+            gap: 3px;
+            margin-top: 6px;
+            flex-wrap: wrap;
+        }
+
+        .game-card {
+            width: 36px;
+            height: 50px;
+            border-radius: 4px;
+            background: #fff;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 700;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        .game-card.red {
+            color: #e74c3c;
+        }
+
+        .game-card.black {
+            color: #2c3e50;
+        }
+
+        .game-card.back {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: transparent;
+        }
+
+        .game-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        .game-actions input {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+            width: 80px;
+            outline: none;
+        }
+
+        .game-actions input::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+        /* ========== 响应式 ========== */
+        @media (max-width: 768px) {
+            #app.active {
+                flex-direction: column;
+                padding: 10px;
+            }
+
+            .sidebar {
+                width: 100%;
+                min-width: unset;
+                flex-direction: row;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .sidebar .panel {
+                flex: 1;
+                min-width: 120px;
+            }
+
+            .sidebar .panel:last-child {
+                flex: 0 0 100%;
+            }
+
+            .player-list {
+                max-height: 120px;
+            }
+
+            .game-panel {
+                max-height: 280px;
+            }
+
+            .game-player {
+                min-width: 70px;
+                padding: 6px 10px;
+            }
+
+            .game-card {
+                width: 28px;
+                height: 40px;
+                font-size: 11px;
+            }
+
+            .chat-input-area .btn {
+                padding: 12px 16px;
+                font-size: 13px;
+            }
+
+            .login-box {
+                padding: 32px 24px;
+            }
+
+            .login-box h1 {
+                font-size: 26px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .message {
+                max-width: 90%;
+            }
+
+            .game-controls .btn {
+                font-size: 11px;
+                padding: 6px 12px;
+            }
+
+            .game-actions .btn {
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ==================== 登录页 ==================== -->
+    <div id="loginPage">
+        <div class="login-box">
+            <h1>🀄 红中密聊</h1>
+            <p class="subtitle">炸金花 · 跑得快 · 畅聊</p>
+            <input type="text" id="nicknameInput" placeholder="输入你的昵称" maxlength="20" autofocus>
+            <input type="text" id="roomInput" placeholder="房间号（默认 default）" maxlength="20">
+            <button class="btn" id="loginBtn">🚀 进入聊天室</button>
+            <div class="error-msg" id="loginError"></div>
+        </div>
+    </div>
+
+    <!-- ==================== 主应用 ==================== -->
+    <div id="app">
+        <!-- 侧边栏 -->
+        <div class="sidebar">
+            <div class="panel">
+                <div class="panel-title">📋 房间信息</div>
+                <div class="room-info">🏠 <strong id="roomName">-</strong></div>
+                <div class="room-info">👥 在线: <span id="playerCount">0</span> 人</div>
+            </div>
+            <div class="panel" style="flex:1;">
+                <div class="panel-title">👤 玩家列表</div>
+                <div class="player-list" id="playerList"></div>
+            </div>
+        </div>
+        <!-- 主区域 -->
+        <div class="main">
+            <!-- 聊天区 -->
+            <div class="chat-panel">
+                <div class="chat-header">
+                    <span>💬 聊天</span>
+                    <span class="online-count" id="onlineCount">0 人在线</span>
+                </div>
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="chat-input-area">
+                    <input type="text" id="chatInput" placeholder="输入消息..." maxlength="500">
+                    <button class="btn" id="sendBtn">发送</button>
+                </div>
+            </div>
+
+            <!-- 游戏区 -->
+            <div class="game-panel" id="gamePanel">
+                <div class="game-header">
+                    <span class="title">🎮 游戏</span>
+                    <div class="game-controls">
+                        <button class="btn btn-start-zjh" id="startZjhBtn">🃏 炸金花</button>
+                        <button class="btn btn-start-pdk" id="startPdkBtn">🃏 跑得快</button>
+                    </div>
+                </div>
+                <div id="gameContent">
+                    <div class="game-status">💡 点击上方按钮开始游戏</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ================================================================
+        //  JavaScript - 完整客户端
+        // ================================================================
+
+        // ---------- DOM 引用 ----------
+        const $ = id => document.getElementById(id);
+        const loginPage = $('loginPage');
+        const app = $('app');
+        const nicknameInput = $('nicknameInput');
+        const roomInput = $('roomInput');
+        const loginBtn = $('loginBtn');
+        const loginError = $('loginError');
+        const roomName = $('roomName');
+        const playerCount = $('playerCount');
+        const onlineCount = $('onlineCount');
+        const playerList = $('playerList');
+        const chatMessages = $('chatMessages');
+        const chatInput = $('chatInput');
+        const sendBtn = $('sendBtn');
+        const gameContent = $('gameContent');
+        const startZjhBtn = $('startZjhBtn');
+        const startPdkBtn = $('startPdkBtn');
+
+        // ---------- 状态 ----------
+        let ws = null;
+        let myId = null;
+        let myName = '';
+        let myRoom = 'default';
+        let isConnected = false;
+        let gameState = null;
+        let gameType = null;
+
+        // ---------- 工具函数 ----------
+        function log(msg) {
+            console.log('[客户端]', msg);
+        }
+
+        function addSystemMessage(text) {
+            const div = document.createElement('div');
+            div.className = 'message system';
+            div.innerHTML = `<div class="msg-bubble">${text}</div>`;
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function addChatMessage(from, content, isOwn) {
+            const div = document.createElement('div');
+            div.className = 'message' + (isOwn ? ' own' : '');
+            const time = new Date().toLocaleTimeString();
+            div.innerHTML = `
+                <div class="msg-meta">
+                    <span class="name">${isOwn ? '我' : from}</span>
+                    <span>${time}</span>
+                </div>
+                <div class="msg-bubble">${content}</div>
+            `;
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function renderPlayerList(players) {
+            playerList.innerHTML = '';
+            if (!players) return;
+            players.forEach(p => {
+                const div = document.createElement('div');
+                div.className = 'player-item';
+                const initial = (p.name || '?')[0].toUpperCase();
+                div.innerHTML = `
+                    <div class="avatar">${initial}</div>
+                    <span class="name">${p.name}</span>
+                    <span class="status online">●</span>
+                `;
+                if (p.id === myId) {
+                    div.style.border = '1px solid rgba(102,126,234,0.4)';
+                }
+                playerList.appendChild(div);
+            });
+            playerCount.textContent = players.length;
+            onlineCount.textContent = players.length + ' 人在线';
+        }
+        // ---------- WebSocket 连接 ----------
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            const wsUrl = `${protocol}//${host}`;
+
+            log('正在连接 WebSocket: ' + wsUrl);
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                log('WebSocket 已连接');
+                isConnected = true;
+                sendMessage({
+                    type: 'join',
+                    name: myName,
+                    roomId: myRoom
+                });
+                addSystemMessage('🔗 已连接到服务器');
+                startHeartbeat();
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleServerMessage(data);
+                } catch (e) {
+                    log('消息解析失败:', e);
+                }
+            };
+
+            ws.onclose = () => {
+                log('WebSocket 已断开');
+                isConnected = false;
+                addSystemMessage('⚠️ 连接已断开，尝试重连...');
+                setTimeout(() => {
+                    if (!isConnected) connectWebSocket();
+                }, 3000);
+            };
+
+            ws.onerror = (err) => {
+                log('WebSocket 错误:', err);
+                loginError.textContent = '连接失败，请检查网络';
+            };
+        }
+
+        // ---------- 心跳 ----------
+        let heartbeatTimer = null;
+
+        function startHeartbeat() {
+            if (heartbeatTimer) clearInterval(heartbeatTimer);
+            heartbeatTimer = setInterval(() => {
+                if (isConnected && ws && ws.readyState === WebSocket.OPEN) {
+                    sendMessage({ type: 'ping' });
+                }
+            }, 25000);
+        }
+
+        // ---------- 发送消息 ----------
+        function sendMessage(data) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('WebSocket 未就绪');
+                return false;
+            }
+            try {
+                ws.send(JSON.stringify(data));
+                return true;
+            } catch (e) {
+                log('发送失败:', e);
+                return false;
+            }
+        }
+
+        // ---------- 处理服务端消息 ----------
+        function handleServerMessage(data) {
+            log('收到消息:', data.type);
+
+            switch (data.type) {
+                case 'connected':
+                    myId = data.id;
+                    log('我的 ID:', myId);
+                    break;
+
+                case 'joined':
+                    myRoom = data.roomId;
+                    roomName.textContent = myRoom;
+                    renderPlayerList(data.players);
+                    addSystemMessage(`✅ 已加入房间「${myRoom}」`);
+                    break;
+
+                case 'player_joined':
+                    addSystemMessage(`👋 ${data.player.name} 加入了房间`);
+                    if (data.players) renderPlayerList(data.players);
+                    break;
+
+                case 'player_left':
+                    const leftName = data.players ? 
+                        data.players.find(p => p.id === data.playerId)?.name : '某位玩家';
+                    addSystemMessage(`👋 ${leftName || '某位玩家'} 离开了房间`);
+                    if (data.players) renderPlayerList(data.players);
+                    break;
+
+                case 'chat':
+                    addChatMessage(data.from.name, data.content, data.from.id === myId);
+                    break;
+
+                case 'game_started':
+                    addSystemMessage(`🎮 ${data.message || '游戏已开始！'}`);
+                    gameType = data.gameType;
+                    break;
+
+                case 'game_state':
+                    gameState = data.state;
+                    gameType = data.gameType;
+                    renderGame(data);
+                    break;
+
+                case 'game_ended':
+                    addSystemMessage(`🏁 ${data.message || '游戏已结束'}`);
+                    gameState = null;
+                    gameType = null;
+                    renderGame(null);
+                    break;
+
+                case 'error':
+                    loginError.textContent = data.message;
+                    addSystemMessage(`❌ ${data.message}`);
+                    break;
+
+                case 'pong':
+                    log('收到 Pong');
+                    break;
+
+                default:
+                    log('未处理的消息类型:', data.type);
+            }
+        }
+        // ---------- 渲染游戏 ----------
+        function renderGame(data) {
+            if (!data || !data.state) {
+                gameContent.innerHTML = `<div class="game-status">💡 点击上方按钮开始游戏</div>`;
+                return;
+            }
+
+            const state = data.state;
+            const myCards = data.myCards || [];
+            const myInfo = data.myInfo || {};
+
+            let html = '';
+
+            html += `<div class="game-status">`;
+            html += `🎯 ${state.phase || '进行中'} `;
+            if (state.pot) html += `| 底池: 🪙 ${state.pot}`;
+            if (state.currentPlayer) html += ` | 当前: ${state.currentPlayer}`;
+            if (state.lastAction) html += ` | ${state.lastAction}`;
+            html += `</div>`;
+
+            if (state.players) {
+                html += `<div class="game-players">`;
+                state.players.forEach(p => {
+                    const isCurrent = p.id === state.currentPlayer;
+                    const isMe = p.id === myId;
+                    html += `<div class="game-player${isCurrent ? ' current' : ''}">`;
+                    html += `<div class="p-name">${isMe ? '⭐ ' : ''}${p.name}</div>`;
+                    html += `<div class="p-status">`;
+                    if (p.folded) html += '弃牌 ';
+                    if (p.allin) html += 'All-in ';
+                    if (p.chips !== undefined) html += `🪙 ${p.chips}`;
+                    if (p.bet !== undefined && p.bet > 0) html += ` | 下注 ${p.bet}`;
+                    html += `</div>`;
+                    if (isMe && myCards && myCards.length > 0) {
+                        html += `<div class="p-cards">`;
+                        myCards.forEach(c => {
+                            const isRed = c.suit === '♥' || c.suit === '♦';
+                            html += `<div class="game-card ${isRed ? 'red' : 'black'}">${c.rank}${c.suit}</div>`;
+                        });
+                        html += `</div>`;
+                    } else if (p.cards && p.cards.length > 0 && p.showCards) {
+                        html += `<div class="p-cards">`;
+                        p.cards.forEach(c => {
+                            const isRed = c.suit === '♥' || c.suit === '♦';
+                            html += `<div class="game-card ${isRed ? 'red' : 'black'}">${c.rank}${c.suit}</div>`;
+                        });
+                        html += `</div>`;
+                    } else if (p.cards && p.cards.length > 0) {
+                        html += `<div class="p-cards">`;
+                        for (let i = 0; i < p.cards.length; i++) {
+                            html += `<div class="game-card back">?</div>`;
+                        }
+                        html += `</div>`;
+                    }
+                    html += `</div>`;
+                });
+                html += `</div>`;
+            }
+
+            if (myCards && myCards.length > 0 && !gameType === 'paodekuai') {
+                html += `<div style="margin-top:8px;font-size:13px;color:rgba(255,255,255,0.5);">我的手牌:</div>`;
+                html += `<div class="p-cards" style="display:flex;gap:4px;margin-top:4px;">`;
+                myCards.forEach(c => {
+                    const isRed = c.suit === '♥' || c.suit === '♦';
+                    html += `<div class="game-card ${isRed ? 'red' : 'black'}">${c.rank}${c.suit}</div>`;
+                });
+                html += `</div>`;
+            }
+
+            const isMyTurn = state.currentPlayer === myId && state.phase !== 'ended';
+            if (isMyTurn) {
+                html += `<div class="game-actions">`;
+                if (gameType === 'zhajinhua') {
+                    html += `
+                        <button class="btn btn-game-action primary" onclick="gameAction('call')">跟注</button>
+                        <button class="btn btn-game-action" onclick="gameAction('raise')">加注</button>
+                        <input type="number" id="raiseAmount" placeholder="金额" value="20" min="10">
+                        <button class="btn btn-game-action danger" onclick="gameAction('fold')">弃牌</button>
+                        <button class="btn btn-game-action" onclick="gameAction('allin')">All-in</button>
+                    `;
+                } else if (gameType === 'paodekuai') {
+                    html += `
+                        <button class="btn btn-game-action primary" onclick="gameAction('play')">出牌</button>
+                        <button class="btn btn-game-action" onclick="gameAction('pass')">过</button>
+                    `;
+                }
+                html += `</div>`;
+            }
+
+            gameContent.innerHTML = html;
+        }
+
+        // ---------- 游戏操作 ----------
+        window.gameAction = function(action) {
+            const data = { type: 'game_action', action: action };
+            if (action === 'raise') {
+                const amountInput = document.getElementById('raiseAmount');
+                if (amountInput) {
+                    data.amount = parseInt(amountInput.value) || 20;
+                }
+            }
+            sendMessage(data);
+        };
+        // ---------- 登录 ----------
+        function doLogin() {
+            const name = nicknameInput.value.trim() || '匿名';
+            const room = roomInput.value.trim() || 'default';
+            myName = name;
+            myRoom = room;
+
+            loginError.textContent = '';
+
+            loginPage.classList.add('hidden');
+            app.classList.add('active');
+
+            connectWebSocket();
+        }
+
+        // ---------- 事件绑定 ----------
+        loginBtn.addEventListener('click', doLogin);
+
+        nicknameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                roomInput.focus();
+            }
+        });
+
+        roomInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                doLogin();
+            }
+        });
+
+        sendBtn.addEventListener('click', () => {
+            const content = chatInput.value.trim();
+            if (!content || !isConnected) return;
+            sendMessage({
+                type: 'chat',
+                content: content
+            });
+            chatInput.value = '';
+            chatInput.focus();
+        });
+
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                sendBtn.click();
+            }
+        });
+
+        startZjhBtn.addEventListener('click', () => {
+            sendMessage({ type: 'start_game', gameType: 'zhajinhua' });
+        });
+
+        startPdkBtn.addEventListener('click', () => {
+            sendMessage({ type: 'start_game', gameType: 'paodekuai' });
+        });
+
+        // ---------- 自动登录（开发调试） ----------
+        (function autoFill() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('name')) {
+                nicknameInput.value = params.get('name');
+            }
+            if (params.has('room')) {
+                roomInput.value = params.get('room');
+            }
+            if (params.has('name') && params.has('room')) {
+                setTimeout(doLogin, 300);
+            }
+        })();
+
+        log('红中密聊 v2.0 已加载');
+        log('GitHub: https://github.com/HZ0116/chat-room');
+    </script>
+</body>
+</html>
