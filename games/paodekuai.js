@@ -318,5 +318,61 @@ class PaoDeKuai {
             return { type: PDK_CARD_TYPE.PAIR, primaryValue: uniqueValues[0] };
         }
         
-        // 三张
-        if (cards.length ==
+                // 三张
+        if (cards.length === 3 && countGroups[0] === 3) {
+            return { type: PDK_CARD_TYPE.TRIPLE, primaryValue: uniqueValues[0] };
+        }
+
+        // 顺子：至少 3 张，且值连续
+        if (cards.length >= 3 && uniqueValues.length === cards.length) {
+            let straight = true;
+            for (let i = 1; i < uniqueValues.length; i++) {
+                if (uniqueValues[i] !== uniqueValues[i - 1] + 1) {
+                    straight = false;
+                    break;
+                }
+            }
+            if (straight) {
+                return { type: PDK_CARD_TYPE.STRAIGHT, primaryValue: uniqueValues[uniqueValues.length - 1] };
+            }
+        }
+
+        // 炸弹/四张
+        if (cards.length === 4 && countGroups[0] === 4) {
+            return { type: PDK_CARD_TYPE.BOMB, primaryValue: uniqueValues[0] };
+        }
+
+        return { type: PDK_CARD_TYPE.INVALID };
+    }
+
+    _isValidPlay(cards, lastPlay) {
+        if (!cards || cards.length === 0) return false;
+
+        const analysis = this._analyzeCards(cards);
+        if (analysis.type === PDK_CARD_TYPE.INVALID) return false;
+
+        if (!lastPlay) return true;
+
+        const lastAnalysis = this._analyzeCards(lastPlay);
+        if (lastAnalysis.type === PDK_CARD_TYPE.INVALID) return false;
+
+        // 炸弹压非炸弹
+        if (analysis.type === PDK_CARD_TYPE.BOMB && lastAnalysis.type !== PDK_CARD_TYPE.BOMB) {
+            return true;
+        }
+
+        // 类型相同且数量/结构可比
+        if (analysis.type === lastAnalysis.type && cards.length === lastPlay.length) {
+            return analysis.primaryValue > lastAnalysis.primaryValue;
+        }
+
+        return false;
+    }
+
+    _log(message) {
+        const entry = `[${new Date().toLocaleTimeString()}] ${message}`;
+        this.gameLog.push(entry);
+    }
+}
+
+module.exports = { PaoDeKuai };
