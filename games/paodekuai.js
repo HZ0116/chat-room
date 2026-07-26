@@ -1,4 +1,4 @@
-// games/paodekuai.js - 跑得快游戏逻辑（完整修复版）
+// games/paodekuai.js - 跑得快游戏逻辑（完整版）
 class PaoDeKuai {
     constructor(roomId, players) {
         this.roomId = roomId;
@@ -109,7 +109,6 @@ class PaoDeKuai {
             [this.state.deck[i], this.state.deck[j]] = [this.state.deck[j], this.state.deck[i]];
         }
     }
-
     sortHand(hand) {
         const rankOrder = { '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14, '2': 15 };
         const suitOrder = { '♠': 4, '♥': 3, '♦': 2, '♣': 1 };
@@ -217,7 +216,6 @@ class PaoDeKuai {
         const player = this.players.find(p => p.id === playerId);
         if (!player) throw new Error('玩家不存在');
         if (player.finished) throw new Error('玩家已出完牌');
-
         if (this.playCount === 0) {
             throw new Error('必须出牌');
         }
@@ -297,4 +295,122 @@ class PaoDeKuai {
         if (cards.length === 4) {
             const rankCount = {};
             cards.forEach(c => { rankCount[c.rank] = (rankCount[c.rank] || 0) + 1; });
-            const counts 
+            const counts = Object.values(rankCount);
+            if (counts.some(c => c === 4)) return true;
+            return counts.some(c => c === 3) && counts.some(c => c === 1);
+        }
+
+        if (cards.length === 5) {
+            const rankCount = {};
+            cards.forEach(c => { rankCount[c.rank] = (rankCount[c.rank] || 0) + 1; });
+            const counts = Object.values(rankCount);
+            return counts.some(c => c === 3) && counts.some(c => c === 2);
+        }
+        if (cards.length >= 5) {
+            const rankOrder = { '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14, '2': 15 };
+            const values = cards.map(c => rankOrder[c.rank]).sort((a, b) => a - b);
+            for (let i = 1; i < values.length; i++) {
+                if (values[i] - values[i - 1] !== 1) return false;
+            }
+            if (values.some(v => v === 15)) return false;
+            const unique = new Set(values);
+            if (unique.size !== values.length) return false;
+            return true;
+        }
+
+        if (cards.length >= 6 && cards.length % 2 === 0) {
+            const rankOrder = { '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14, '2': 15 };
+            const rankCount = {};
+            cards.forEach(c => { rankCount[c.rank] = (rankCount[c.rank] || 0) + 1; });
+            const values = Object.keys(rankCount).map(r => rankOrder[r]).sort((a, b) => a - b);
+            if (Object.values(rankCount).some(c => c !== 2)) return false;
+            for (let i = 1; i < values.length; i++) {
+                if (values[i] - values[i - 1] !== 1) return false;
+            }
+            if (values.some(v => v === 15)) return false;
+            return values.length >= 3;
+        }
+
+        if (cards.length >= 6) {
+            const rankOrder = { '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14, '2': 15 };
+            const rankCount = {};
+            cards.forEach(c => { rankCount[c.rank] = (rankCount[c.rank] || 0) + 1; });
+            const triples = Object.keys(rankCount).filter(r => rankCount[r] >= 3);
+            if (triples.length < 2) return false;
+            const tripleValues = triples.map(r => rankOrder[r]).sort((a, b) => a - b);
+            for (let i = 1; i < tripleValues.length; i++) {
+                if (tripleValues[i] - tripleValues[i - 1] !== 1) return false;
+            }
+            if (tripleValues.some(v => v === 15)) return false;
+            return true;
+        }
+
+        return false;
+    }
+
+    isGreater(cards1, cards2) {
+        if (cards1.length !== cards2.length) return false;
+
+        const rankOrder = { '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14, '2': 15 };
+
+        if (cards1.length === 4) {
+            const rank1 = cards1[0].rank;
+            const rank2 = cards2[0].rank;
+            if (rank1 === rank2) {
+                return cards1.every(c => c.rank === rank1) && !cards2.every(c => c.rank === rank2);
+            }
+            if (cards1.every(c => c.rank === rank1) && cards2.every(c => c.rank === rank2)) {
+                return rankOrder[rank1] > rankOrder[rank2];
+            }
+            return false;
+        }
+
+        if (cards1.length === 1) {
+            return rankOrder[cards1[0].rank] > rankOrder[cards2[0].rank];
+        }
+
+        if (cards1.length === 2 || cards1.length === 3) {
+            return rankOrder[cards1[0].rank] > rankOrder[cards2[0].rank];
+        }
+
+        if (cards1.length === 4 || cards1.length === 5) {
+            const rankCount1 = {};
+            const rankCount2 = {};
+            cards1.forEach(c => { rankCount1[c.rank] = (rankCount1[c.rank] || 0) + 1; });
+            cards2.forEach(c => { rankCount2[c.rank] = (rankCount2[c.rank] || 0) + 1; });
+
+            const triple1 = Object.keys(rankCount1).find(r => rankCount1[r] === 3);
+            const triple2 = Object.keys(rankCount2).find(r => rankCount2[r] === 3);
+
+            if (!triple1 || !triple2) return false;
+            return rankOrder[triple1] > rankOrder[triple2];
+        }
+
+        const rankOrderMap = { '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14, '2': 15 };
+        const values1 = cards1.map(c => rankOrderMap[c.rank]).sort((a, b) => a - b);
+        const values2 = cards2.map(c => rankOrderMap[c.rank]).sort((a, b) => a - b);
+
+        return values1[values1.length - 1] > values2[values2.length - 1];
+    }
+    checkPlayerLeft(playerId) {
+        const player = this.players.find(p => p.id === playerId);
+        if (player && !player.finished && this.state.phase !== 'ended') {
+            player.finished = true;
+            const activePlayers = this.players.filter(p => !p.finished);
+            if (activePlayers.length <= 1) {
+                this.state.phase = 'ended';
+                if (activePlayers.length === 1) {
+                    this.state.winner = activePlayers[0].id;
+                    this.state.lastAction = `🏆 ${activePlayers[0].name} 获胜！`;
+                }
+                this.started = false;
+                this.players.forEach(p => p.isCurrent = false);
+            } else if (this.state.currentPlayer === playerId) {
+                this.nextTurn(playerId);
+            }
+        }
+        return this.getState();
+    }
+}
+
+module.exports = { PaoDeKuai };
