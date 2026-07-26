@@ -14,7 +14,6 @@ try {
     PaoDeKuai = pdk.PaoDeKuai;
 } catch (e) {
     console.warn('[警告] 游戏模块加载失败:', e.message);
-    // 创建占位类，防止启动崩溃
     ZhaJinHua = class { constructor() {} };
     PaoDeKuai = class { constructor() {} };
 }
@@ -22,33 +21,27 @@ try {
 const PORT = process.env.PORT || 3000;
 
 // ============ 数据结构 ============
-const rooms = new Map();      // roomId -> { players: [], game: null, gameType: null }
-const clients = new Map();    // socket -> { id, name, roomId, socket }
-const gameInstances = new Map(); // roomId -> { game, type }
+const rooms = new Map();
+const clients = new Map();
+const gameInstances = new Map();
 
 // ============ HTTP 服务器 ============
 const server = http.createServer((req, res) => {
-    // 1. 解析 URL，去除 query 和 hash
     const url = req.url || '/';
     const pathname = url.split('?')[0].split('#')[0];
-    
+
     console.log(`[${new Date().toISOString()}] ${req.method} ${pathname}`);
 
-    // 2. 处理 favicon
     if (pathname === '/favicon.ico') {
         res.writeHead(204);
         res.end();
         return;
     }
 
-    // 3. 处理根路径
     let filePath = pathname === '/' ? '/index.html' : pathname;
-
-    // 4. 安全检查：防止路径穿越
     const safePath = path.normalize(filePath).replace(/^(\.\.[\/\\])+/, '');
     const fullPath = path.join(__dirname, safePath);
 
-    // 5. 检查文件是否存在
     fs.stat(fullPath, (err, stats) => {
         if (err || !stats.isFile()) {
             res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -56,7 +49,6 @@ const server = http.createServer((req, res) => {
             return;
         }
 
-        // 6. MIME 类型映射
         const ext = path.extname(fullPath).toLowerCase();
         const mimeTypes = {
             '.html': 'text/html; charset=utf-8',
@@ -71,14 +63,9 @@ const server = http.createServer((req, res) => {
             '.ico': 'image/x-icon',
             '.txt': 'text/plain; charset=utf-8',
             '.wasm': 'application/wasm',
-            '.mp3': 'audio/mpeg',
-            '.mp4': 'video/mp4',
-            '.woff': 'font/woff',
-            '.woff2': 'font/woff2',
         };
         const contentType = mimeTypes[ext] || 'application/octet-stream';
 
-        // 7. 读取并返回文件
         fs.readFile(fullPath, (err, data) => {
             if (err) {
                 res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -100,7 +87,6 @@ server.on('upgrade', (req, socket, head) => {
         return;
     }
 
-    // WebSocket 握手
     const acceptKey = req.headers['sec-websocket-key'];
     const hash = crypto
         .createHash('sha1')
@@ -117,7 +103,6 @@ server.on('upgrade', (req, socket, head) => {
 
     socket.write(responseHeaders);
 
-    // 创建客户端对象
     const clientId = randomUUID();
     const client = {
         id: clientId,
@@ -129,14 +114,12 @@ server.on('upgrade', (req, socket, head) => {
 
     clients.set(socket, client);
 
-    // 发送连接成功消息
     sendToClient(client, {
         type: 'connected',
         id: clientId,
         timestamp: Date.now()
     });
 
-    // 事件绑定
     socket.on('data', (chunk) => handleWebSocketData(client, chunk));
     socket.on('close', () => handleDisconnect(client));
     socket.on('error', (err) => {
@@ -160,7 +143,6 @@ function handleWebSocketData(client, chunk) {
 
         let offset = 2;
 
-        // 解析扩展长度
         if (payloadLength === 126) {
             if (client.buffer.length < 4) return;
             payloadLength = client.buffer.readUInt16BE(2);
@@ -171,44 +153,35 @@ function handleWebSocketData(client, chunk) {
             offset = 10;
         }
 
-        // 必须是 masked（客户端发送的数据必须掩码）
         if (!masked) {
             client.socket.destroy();
             return;
         }
 
-        // 读取掩码
         const mask = client.buffer.slice(offset, offset + 4);
         offset += 4;
 
-        // 检查数据是否完整
         if (client.buffer.length < offset + payloadLength) return;
 
-        // 解掩码
         const payload = client.buffer.slice(offset, offset + payloadLength);
         const unmasked = Buffer.alloc(payloadLength);
         for (let i = 0; i < payloadLength; i++) {
             unmasked[i] = payload[i] ^ mask[i % 4];
         }
 
-        // 移除已处理的数据
         client.buffer = client.buffer.slice(offset + payloadLength);
 
-        // 处理不同类型的帧
         if (opcode === 0x8) {
-            // 关闭帧
             handleDisconnect(client);
             return;
         }
 
         if (opcode === 0x9) {
-            // Ping 帧 -> 回复 Pong
             sendPong(client);
             continue;
         }
 
         if (opcode === 0x1) {
-            // 文本帧
             try {
                 const message = JSON.parse(unmasked.toString('utf8'));
                 handleMessage(client, message);
@@ -219,19 +192,16 @@ function handleWebSocketData(client, chunk) {
     }
 }
 
-// ============ 发送 Pong 响应 ============
+// ============ 发送 Pong ============
 function sendPong(client) {
     try {
-        // Pong 帧: opcode 0xA
         const frame = Buffer.from([0x8A, 0x00]);
         client.socket.write(frame);
         console.log('[WS] 回复 Pong 心跳');
-    } catch (e) {
-        // ignore
-    }
+    } catch (e) {}
 }
 
-// ============ 发送消息到客户端 ============
+// ============ 发送消息 ============
 function sendToClient(client, data) {
     if (!client || !client.socket) return;
 
@@ -266,7 +236,7 @@ function sendToClient(client, data) {
     }
 }
 
-// ============ 广播消息 ============
+// ============ 广播 ============
 function broadcast(roomId, data, excludeId = null) {
     const room = rooms.get(roomId);
     if (!room) return;
@@ -298,7 +268,7 @@ function handleMessage(client, msg) {
             handleJoin(client, msg);
             break;
         case 'chat':
-        case 'message':  // 兼容前端旧协议
+        case 'message':
             handleChat(client, msg);
             break;
         case 'start_game':
@@ -312,7 +282,6 @@ function handleMessage(client, msg) {
             leaveRoom(client);
             break;
         case 'ping':
-            // 前端主动发 ping，回复 pong
             sendToClient(client, { type: 'pong', timestamp: Date.now() });
             break;
         default:
@@ -325,7 +294,6 @@ function handleJoin(client, msg) {
     const name = String(msg.name || msg.nickname || '匿名').slice(0, 20);
     const roomId = String(msg.roomId || msg.room || 'default');
 
-    // 离开旧房间
     if (client.roomId) {
         leaveRoom(client);
     }
@@ -333,7 +301,6 @@ function handleJoin(client, msg) {
     client.name = name;
     client.roomId = roomId;
 
-    // 创建或获取房间
     if (!rooms.has(roomId)) {
         rooms.set(roomId, { players: [], game: null, gameType: null });
     }
@@ -341,16 +308,50 @@ function handleJoin(client, msg) {
     const room = rooms.get(roomId);
     room.players.push({ id: client.id, name: name });
 
-    // 发送加入成功
     sendToClient(client, {
         type: 'joined',
         roomId: roomId,
         players: room.players.map(p => ({ id: p.id, name: p.name }))
     });
 
-    // 广播玩家加入
     broadcast(roomId, {
         type: 'player_joined',
         player: { id: client.id, name: name },
         players: room.players.map(p => ({ id: p.id, name: p.name }))
     }, client.id);
+
+    const gameWrapper = gameInstances.get(roomId);
+    if (gameWrapper) {
+        broadcastGameState(gameWrapper.game, roomId);
+    }
+}
+
+// ============ 聊天 ============
+function handleChat(client, msg) {
+    if (!client.roomId) return;
+
+    const content = String(msg.content || msg.text || '').slice(0, 500);
+    if (!content.trim()) return;
+
+    broadcast(client.roomId, {
+        type: 'chat',
+        from: { id: client.id, name: client.name },
+        content: content,
+        time: Date.now()
+    });
+}
+
+// ============ 离开房间 ============
+function leaveRoom(client) {
+    if (!client.roomId) return;
+
+    const roomId = client.roomId;
+    const room = rooms.get(roomId);
+    if (!room) return;
+
+    room.players = room.players.filter(p => p.id !== client.id);
+
+    broadcast(roomId, {
+        type: 'player_left',
+        playerId: client.id,
+        players: room.players.map(p => ({ id: p
