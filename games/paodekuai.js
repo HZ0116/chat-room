@@ -324,3 +324,142 @@ class PaoDeKuai {
 
         if (cards.length >= 6 && cards.length % 2 === 0) {
             const pairVals = Object.keys(valueCounts).filter(k => valueCounts[k] === 2).map(Number).sort((a, b) => a - 
+        // 连对
+        if (cards.length >= 6 && cards.length % 2 === 0) {
+            const pairVals = Object.keys(valueCounts).filter(k => valueCounts[k] === 2).map(Number).sort((a, b) => a - b);
+            if (pairVals.length === cards.length / 2 && this._isConsecutive(pairVals) && !pairVals.includes(15)) {
+                return { type: PDK_CARD_TYPE.PAIR_STRAIGHT, primaryValue: pairVals[pairVals.length - 1] };
+            }
+        }
+
+        // 炸弹
+        if (cards.length === 4 && countGroups[0] === 4) {
+            return { type: PDK_CARD_TYPE.BOMB, primaryValue: uniqueValues[0] };
+        }
+
+        // 三带一
+        if (cards.length === 4 && countGroups.includes(3) && countGroups.includes(1)) {
+            const triple = Object.keys(valueCounts).find(k => valueCounts[k] === 3);
+            return { type: PDK_CARD_TYPE.TRIPLE_ONE, primaryValue: parseInt(triple) };
+        }
+
+        // 三带一对
+        if (cards.length === 5 && countGroups.includes(3) && countGroups.includes(2)) {
+            const triple = Object.keys(valueCounts).find(k => valueCounts[k] === 3);
+            return { type: PDK_CARD_TYPE.TRIPLE_PAIR, primaryValue: parseInt(triple) };
+        }
+
+        // 飞机
+        const triples = uniqueValues.filter(v => valueCounts[v] === 3);
+        if (triples.length >= 2 && this._isConsecutive(triples)) {
+            return { type: PDK_CARD_TYPE.PLANE, primaryValue: Math.max(...triples) };
+        }
+
+        // 四带二
+        if (cards.length === 6 && countGroups.includes(4) && countGroups.filter(c => c === 1).length === 2) {
+            const quad = Object.keys(valueCounts).find(k => valueCounts[k] === 4);
+            return { type: PDK_CARD_TYPE.FOUR_TWO, primaryValue: parseInt(quad) };
+        }
+
+        // 四带两对
+        if (cards.length === 8 && countGroups.includes(4) && countGroups.filter(c => c === 2).length === 2) {
+            const quad = Object.keys(valueCounts).find(k => valueCounts[k] === 4);
+            return { type: PDK_CARD_TYPE.FOUR_TWO_PAIRS, primaryValue: parseInt(quad) };
+        }
+
+        return { type: PDK_CARD_TYPE.INVALID };
+    }
+
+    _isStraight(values) {
+        if (values.length < 5) return false;
+        const unique = [...new Set(values)].sort((a, b) => a - b);
+        if (unique.length !== values.length) return false;
+        for (let i = 1; i < unique.length; i++) {
+            if (unique[i] - unique[i - 1] !== 1) return false;
+        }
+        return true;
+    }
+
+    _isConsecutive(values) {
+        const sorted = [...values].sort((a, b) => a - b);
+        for (let i = 1; i < sorted.length; i++) {
+            if (sorted[i] - sorted[i - 1] !== 1) return false;
+        }
+        return true;
+    }
+
+    _canBeat(cards, typeInfo, lastPlay) {
+        if (typeInfo.type === PDK_CARD_TYPE.BOMB && lastPlay.type !== PDK_CARD_TYPE.BOMB) {
+            return true;
+        }
+        if (typeInfo.type === lastPlay.type) {
+            if (cards.length !== lastPlay.cards.length) return false;
+            return typeInfo.primaryValue > lastPlay.primaryValue;
+        }
+        return false;
+    }
+
+    end() {
+        this.state = 'ended';
+
+        const finishedIds = this.finished.map(f => f.playerId);
+        const lastPlayer = this.players.find(p => !finishedIds.includes(p.id));
+        if (lastPlayer) {
+            this.finished.push({ playerId: lastPlayer.id, rank: this.players.length });
+        }
+
+        this._log('游戏结束');
+        this._log(`排名: ${this.finished.map(f => {
+            const p = this.players.find(p => p.id === f.playerId);
+            return `${f.rank}.${p.name}`;
+        }).join(', ')}`);
+
+        return this.getGameState();
+    }
+
+    getGameState(forPlayerId = null) {
+        const baseState = {
+            roomId: this.roomId,
+            state: this.state,
+            currentPlayerId: this.state === 'playing' ? this.getCurrentPlayer()?.id : null,
+            lastPlay: this.lastPlay ? {
+                playerId: this.lastPlay.playerId,
+                cards: this.lastPlay.cards,
+                type: this.lastPlay.type
+            } : null,
+            finished: this.finished,
+            players: this.players.map(p => ({
+                id: p.id,
+                name: p.name,
+                cardCount: this.hands.get(p.id)?.length || 0,
+                finished: !!this.finished.find(f => f.playerId === p.id)
+            })),
+            log: this.gameLog.slice(-15)
+        };
+
+        if (forPlayerId) {
+            baseState.hand = this.hands.get(forPlayerId) || [];
+            baseState.canAct = this.state === 'playing' &&
+                this.getCurrentPlayer()?.id === forPlayerId;
+            baseState.canPass = this.state === 'playing' &&
+                this.getCurrentPlayer()?.id === forPlayerId &&
+                this.turnCount > 0 &&
+                this.lastPlay &&
+                this.lastPlay.playerId !== forPlayerId;
+        }
+
+        return baseState;
+    }
+
+    _cardsToString(cards) {
+        return cards.map(c => c.rank + c.suit).join('');
+    }
+
+    _log(message) {
+        const entry = `[${new Date().toLocaleTimeString()}] ${message}`;
+        this.gameLog.push(entry);
+    }
+}
+
+module.exports = { PaoDeKuai, PDK_CARD_TYPE, PDK_SUIT, PDK_RANK_VALUES };
+
