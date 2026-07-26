@@ -1,12 +1,50 @@
 // chat-server.js - 零依赖 WebSocket 聊天服务器（含游戏修复）
 
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 const { randomUUID } = require('crypto');
-const { ZhaJinHua } = require('./zha金花');
-const { PaoDeKuai } = require('./paodekuai');
+const { ZhaJinHua } = require('./games/zha金花');
+const { PaoDeKuai } = require('./games/paodekuai');
 
 const PORT = process.env.PORT || 3000;
 const server = http.createServer();
+
+// 静态文件服务（index.html 在根目录）
+server.on('request', (req, res) => {
+    // favicon 静默处理
+    if (req.url === '/favicon.ico') {
+        res.writeHead(204);
+        return res.end();
+    }
+
+    const url = req.url === '/' ? '/index.html' : req.url;
+    
+    // 防止路径穿越
+    const sanitizedPath = path.normalize(url).replace(/^(\.\.[\/\\])+/, '');
+    const filePath = path.join(__dirname, sanitizedPath);
+
+    const ext = path.extname(filePath);
+    const mimeTypes = {
+        '.html': 'text/html; charset=utf-8',
+        '.js': 'application/javascript; charset=utf-8',
+        '.css': 'text/css; charset=utf-8',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.gif': 'image/gif'
+    };
+
+    fs.readFile(filePath, (err, data) => {
+        if (err) {
+            res.writeHead(404);
+            res.end('Not found');
+            return;
+        }
+        const mime = mimeTypes[ext] || 'application/octet-stream';
+        res.writeHead(200, { 'Content-Type': mime });
+        res.end(data);
+    });
+});
 
 // 房间管理
 const rooms = new Map(); // roomId -> { players: [], game: null, gameType: null }
@@ -107,6 +145,12 @@ function handleFrame(client, chunk) {
             return;
         }
 
+        // ping 帧，回复 pong 防 Railway 空闲断开
+        if (opcode === 0x9) {
+            socket.write(Buffer.from([0x8A, 0x00]));
+            continue;
+        }
+
         if (opcode === 0x1) {
             try {
                 const message = JSON.parse(unmasked.toString('utf8'));
@@ -169,7 +213,11 @@ function handleDisconnect(client) {
         leaveRoom(client);
     }
     clients.delete(client.socket);
-    client.socket.destroy();
+    try {
+        client.socket.destroy();
+    } catch (e) {
+        // ignore
+    }
 }
 
 // 消息路由
@@ -195,178 +243,5 @@ function handleMessage(client, msg) {
 
 function handleJoin(client, msg) {
     const name = String(msg.name || '匿名').slice(0, 20);
-    const roomId = String(msg.roomId || 'default');
+    const 
 
-    // 离开旧房间
-    if (client.roomId) {
-        leaveRoom(client);
-    }
-
-    client.name = name;
-    client.roomId = roomId;
-
-    if (!rooms.has(roomId)) {
-        rooms.set(roomId, { players: [], game: null, gameType: null });
-    }
-
-    const room = rooms.get(roomId);
-    room.players.push({ id: client.id, name, ws: client });
-
-    sendToClient(client, {
-        type: 'joined',
-        roomId,
-        players: room.players.map(p => ({ id: p.id, name: p.name }))
-    });
-
-    broadcast(roomId, {
-        type: 'player_joined',
-        player: { id: client.id, name }
-    }, client.id);
-}
-
-function handleChat(client, msg) {
-    if (!client.roomId) return;
-
-    broadcast(client.roomId, {
-        type: 'chat',
-        from: { id: client.id, name: client.name },
-        content: String(msg.content || '').slice(0, 500),
-        time: Date.now()
-    }, client.id);
-}
-
-function handleStartGame(client, msg) {
-    const room = rooms.get(client.roomId);
-    if (!room) return;
-
-    const gameType = msg.gameType; // 'zhajinhua' | 'paodekuai'
-
-    if (games.has(client.roomId)) {
-        sendToClient(client, { type: 'error', message: '游戏正在进行中' });
-        return;
-    }
-
-    try {
-        let game;
-        if (gameType === 'zhajinhua') {
-            if (room.players.length < 2) {
-                sendToClient(client, { type: 'error', message: '炸金花至少需要2人' });
-                return;
-            }
-            game = new ZhaJinHua(client.roomId, room.players);
-        } else if (gameType === 'paodekuai') {
-            if (room.players.length < 3) {
-                sendToClient(client, { type: 'error', message: '跑得快需要3或4人' });
-                return;
-            }
-            game = new PaoDeKuai(client.roomId, room.players);
-        } else {
-            sendToClient(client, { type: 'error', message: '未知游戏类型' });
-            return;
-        }
-
-        const initialState = game.start();
-        games.set(client.roomId, { game, type: gameType });
-        room.game = game;
-        room.gameType = gameType;
-
-        // 🔧 关键修复：每个玩家单独发包含自己手牌的状态
-        broadcastGameState(game, client.roomId);
-
-        broadcast(client.roomId, {
-            type: 'game_started',
-            gameType
-        });
-
-    } catch (e) {
-        sendToClient(client, { type: 'error', message: e.message });
-    }
-}
-
-function handleGameAction(client, msg) {
-    const gameWrapper = games.get(client.roomId);
-    if (!gameWrapper) {
-        sendToClient(client, { type: 'error', message: '没有正在进行的游戏' });
-        return;
-    }
-
-    const { game } = gameWrapper;
-
-    try {
-        let result;
-        switch (msg.action) {
-            case 'bet':
-                result = game.bet(client.id, msg.amount);
-                break;
-            case 'call':
-                result = game.call(client.id);
-                break;
-            case 'raise':
-                result = game.raise(client.id, msg.amount);
-                break;
-            case 'fold':
-                result = game.fold(client.id);
-                break;
-            case 'allin':
-                result = game.allIn(client.id);
-                break;
-            case 'play':
-                result = game.play(client.id, msg.cards);
-                break;
-            case 'pass':
-                result = game.pass(client.id);
-                break;
-            default:
-                sendToClient(client, { type: 'error', message: '未知操作' });
-                return;
-        }
-
-        // 🔧 关键修复：每个玩家单独发状态
-        broadcastGameState(game, client.roomId);
-
-        if (result.state === 'ended') {
-            games.delete(client.roomId);
-            const room = rooms.get(client.roomId);
-            if (room) {
-                room.game = null;
-                room.gameType = null;
-            }
-        }
-
-    } catch (e) {
-        sendToClient(client, { type: 'error', message: e.message });
-    }
-}
-
-// 🔧 核心修复函数：为每个玩家单独发送包含其手牌的游戏状态
-function broadcastGameState(game, roomId) {
-    const room = rooms.get(roomId);
-    if (!room) return;
-
-    for (const player of room.players) {
-        const client = Array.from(clients.values()).find(c => c.id === player.id);
-        if (!client) continue;
-
-        const state = game.getGameState(player.id);
-        sendToClient(client, {
-            type: 'game_state',
-            state
-        });
-    }
-}
-
-function leaveRoom(client) {
-    if (!client.roomId) return;
-
-    const room = rooms.get(client.roomId);
-    if (room) {
-        room.players = room.players.filter(p => p.id !== client.id);
-        
-        broadcast(client.roomId, {
-            type: 'player_left',
-            playerId: client.id
-        });
-
-        if (room.players.length === 0) {
-            rooms.delete(client.roomId);
-            games.delete(clien
