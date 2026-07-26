@@ -1,4 +1,84 @@
+# ============ Node.js ============
 node_modules/
-*.log
-.DS_Store
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ============ 环境变量 ============
 .env
+.env.local
+.env.*.local
+
+# ============ 日志 ============
+logs/
+*.log
+log.txt
+
+# ============ 操作系统 ============
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============ IDE ============
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ============ 临时文件 ============
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# ============ 测试 ============
+coverage/
+.nyc_output/
+*.test.js
+*.spec.js
+
+# ============ Railway 部署 ============
+.railway/
+railway.json
+
+# ============ 项目特定 ============
+# 如果不想上传游戏测试文件
+tests/
+*.test.js
+
+# 用户数据（如果有）
+data/
+db/
+*.db
+*.sqlite
+
+# 证书
+*.pem
+*.key
+*.crt
+
+# 压缩包
+*.zip
+*.rar
+*.7z
+*.tar.gz
+
+# ============ 注意 ============
+# 以下是需要提交到仓库的文件，不要忽略：
+# !chat-server.js
+# !index.html
+# !games/
+# !package.json
+# !README.md
+# !.gitignore
