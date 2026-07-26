@@ -308,24 +308,92 @@ class ZhaJinHua {
         return { type: CARD_TYPE.HIGH_CARD, values };
     }
     
-    _isStraight(values) {
-        const unique = [...new Set(values)].sort((a, b) => a - b);
-        if (unique.length < 3) return false;
-        
-        // A-2-3 特殊顺子
-        if (unique.includes(1) && unique.includes(2) && unique.includes(3)) {
-            return true;
-        }
-        
-        for (let i = 0; i <= unique.length - 3; i++) {
-            if (unique[i + 2] - unique[i] === 2 && 
-                unique[i + 1] - unique[i] === 1) {
-                return true;
-            }
-        }
-        return false;
-    }
-    
-    _normalizeStraightValues(values) {
+        _normalizeStraightValues(values) {
         const sorted = [...values].sort((a, b) => a - b);
-        // A
+        // A-2-3 特殊顺子，按 3 算最大
+        if (sorted.includes(1) && sorted.includes(2) && sorted.includes(3)) {
+            return [3, 2, 1];
+        }
+        return sorted.reverse();
+    }
+
+    _getRankCounts(values) {
+        const counts = {};
+        for (const v of values) {
+            counts[v] = (counts[v] || 0) + 1;
+        }
+        return counts;
+    }
+
+    end() {
+        if (this.state === 'ended') {
+            return this.getGameState();
+        }
+
+        // 只剩一人
+        const remaining = this.players.filter(p => !this.folded.has(p.id));
+        if (remaining.length === 1) {
+            this.winner = remaining[0];
+        } else {
+            // 比牌
+            let bestPlayer = remaining[0];
+            let bestHand = this.hands.get(bestPlayer.id);
+
+            for (let i = 1; i < remaining.length; i++) {
+                const player = remaining[i];
+                const hand = this.hands.get(player.id);
+                const result = this.compareHands(hand, bestHand);
+                if (result > 0) {
+                    bestHand = hand;
+                    bestPlayer = player;
+                }
+            }
+            this.winner = bestPlayer;
+        }
+
+        // 分配奖池
+        const winnerChips = this.chips.get(this.winner.id);
+        this.chips.set(this.winner.id, winnerChips + this.pot);
+
+        this.state = 'ended';
+        this._log(`${this.winner.name} 赢得 ${this.pot} 筹码！`);
+
+        return this.getGameState();
+    }
+
+    getGameState(forPlayerId = null) {
+        const baseState = {
+            roomId: this.roomId,
+            state: this.state,
+            pot: this.pot,
+            currentBet: this.currentBet,
+            currentPlayerId: this.state === 'betting' ? this.getCurrentPlayer()?.id : null,
+            players: this.players.map(p => ({
+                id: p.id,
+                name: p.name,
+                chips: this.chips.get(p.id),
+                bet: this.bets.get(p.id) || 0,
+                folded: this.folded.has(p.id),
+                allIn: this.allInPlayers.has(p.id)
+            })),
+            winner: this.winner ? { id: this.winner.id, name: this.winner.name } : null,
+            log: this.gameLog.slice(-10)
+        };
+
+        if (forPlayerId) {
+            baseState.hand = this.hands.get(forPlayerId) || null;
+            baseState.canAct = this.state === 'betting' &&
+                this.getCurrentPlayer()?.id === forPlayerId &&
+                !this.folded.has(forPlayerId);
+        }
+
+        return baseState;
+    }
+
+    _log(message) {
+        const entry = `[${new Date().toLocaleTimeString()}] ${message}`;
+        this.gameLog.push(entry);
+    }
+}
+
+module.exports = { ZhaJinHua, CARD_TYPE };
