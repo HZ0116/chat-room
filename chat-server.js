@@ -243,5 +243,31 @@ function handleMessage(client, msg) {
 
 function handleJoin(client, msg) {
     const name = String(msg.name || '匿名').slice(0, 20);
-    const 
+    const roomId = String(msg.roomId || 'default');
+
+    if (client.roomId) {
+        leaveRoom(client);
+    }
+
+    client.name = name;
+    client.roomId = roomId;
+
+    if (!rooms.has(roomId)) {
+        rooms.set(roomId, { players: [], game: null, gameType: null });
+    }
+
+    const room = rooms.get(roomId);
+    room.players.push({ id: client.id, name, ws: client });
+
+    sendToClient(client, {
+        type: 'joined',
+        roomId,
+        players: room.players.map(p => ({ id: p.id, name: p.name }))
+    });
+
+    broadcast(roomId, {
+        type: 'player_joined',
+        player: { id: client.id, name }
+    }, client.id);
+}
 
