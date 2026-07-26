@@ -92,7 +92,6 @@ class ZhaJinHua {
     setBlinds() {
         const activePlayers = this.players.filter(p => !p.folded);
         if (activePlayers.length < 2) return;
-
         this.dealerIndex = (this.dealerIndex + 1) % activePlayers.length;
         activePlayers[this.dealerIndex].isDealer = true;
 
@@ -202,7 +201,6 @@ class ZhaJinHua {
         this.nextTurn();
         return this.getState();
     }
-
     raise(playerId, amount) {
         if (this.state.phase === 'ended') throw new Error('游戏已结束');
         if (this.state.currentPlayer !== playerId) throw new Error('不是你的回合');
@@ -297,4 +295,166 @@ class ZhaJinHua {
                 this.players.forEach(p => p.isCurrent = p.id === this.state.currentPlayer);
                 return;
             }
-            nextIndex = (nextIndex + 1) % this.player
+            nextIndex = (nextIndex + 1) % this.players.length;
+            attempts++;
+        }
+
+        this.nextStage();
+    }
+    nextStage() {
+        const activePlayers = this.players.filter(p => !p.folded);
+        if (activePlayers.length === 1) {
+            this.endGame(activePlayers[0]);
+            return;
+        }
+
+        this.players.forEach(p => p.bet = 0);
+        this.currentBet = 0;
+        this.raiseCount = 0;
+
+        switch (this.state.phase) {
+            case 'preflop':
+                this.state.phase = 'flop';
+                this.flopCards();
+                break;
+            case 'flop':
+                this.state.phase = 'turn';
+                this.turnCard();
+                break;
+            case 'turn':
+                this.state.phase = 'river';
+                this.riverCard();
+                break;
+            case 'river':
+                this.state.phase = 'showdown';
+                this.showdown();
+                return;
+            default:
+                this.state.phase = 'ended';
+                return;
+        }
+
+        const active = this.players.filter(p => !p.folded);
+        let startIndex = (this.dealerIndex + 1) % this.players.length;
+        while (startIndex < this.players.length && this.players[startIndex].folded) {
+            startIndex = (startIndex + 1) % this.players.length;
+        }
+        this.actionIndex = startIndex;
+        this.state.currentPlayer = this.players[startIndex].id;
+        this.players.forEach(p => p.isCurrent = p.id === this.state.currentPlayer);
+        this.state.lastAction = `${this.state.phase.toUpperCase()} 阶段开始`;
+    }
+
+    flopCards() {
+        this.state.communityCards = [];
+        this.state.deck.pop();
+        for (let i = 0; i < 3; i++) {
+            if (this.state.deck.length > 0) {
+                this.state.communityCards.push(this.state.deck.pop());
+            }
+        }
+        this.state.lastAction = `翻牌: ${this.state.communityCards.map(c => c.rank + c.suit).join(' ')}`;
+    }
+
+    turnCard() {
+        this.state.deck.pop();
+        if (this.state.deck.length > 0) {
+            this.state.communityCards.push(this.state.deck.pop());
+        }
+        this.state.lastAction = `转牌: ${this.state.communityCards[3].rank}${this.state.communityCards[3].suit}`;
+    }
+
+    riverCard() {
+        this.state.deck.pop();
+        if (this.state.deck.length > 0) {
+            this.state.communityCards.push(this.state.deck.pop());
+        }
+        this.state.lastAction = `河牌: ${this.state.communityCards[4].rank}${this.state.communityCards[4].suit}`;
+    }
+
+    showdown() {
+        const activePlayers = this.players.filter(p => !p.folded);
+        if (activePlayers.length === 0) {
+            this.state.phase = 'ended';
+            this.state.lastAction = '游戏结束，无人获胜';
+            return;
+        }
+
+        let bestPlayer = activePlayers[0];
+        let bestRank = this.evaluateHand(bestPlayer.hand);
+
+        for (const player of activePlayers) {
+            const rank = this.evaluateHand(player.hand);
+            if (rank > bestRank) {
+                bestRank = rank;
+                bestPlayer = player;
+            }
+        }
+
+        this.endGame(bestPlayer);
+    }
+
+    evaluateHand(hand) {
+        if (hand.length < 3) return 0;
+        const ranks = hand.map(c => c.rank);
+        const suits = hand.map(c => c.suit);
+
+        const isFlush = suits.every(s => s === suits[0]);
+
+        const rankValues = ranks.map(r => {
+            const values = { '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14 };
+            return values[r] || 0;
+        });
+        const sorted = rankValues.sort((a, b) => a - b);
+        const isStraight = sorted[2] - sorted[0] === 2 &&
+            sorted[1] - sorted[0] === 1;
+
+        const rankCount = {};
+        rankValues.forEach(r => { rankCount[r] = (rankCount[r] || 0) + 1; });
+        const counts = Object.values(rankCount);
+        const isTrips = counts.some(c => c === 3);
+        const isPair = counts.some(c => c === 2);
+
+        if (isFlush && isStraight) return 9;
+        if (isTrips) return 8;
+        if (isStraight) return 7;
+        if (isFlush) return 6;
+        if (isPair) {
+            if (counts.filter(c => c === 2).length === 2) return 5;
+            return 4;
+        }
+        return Math.max(...rankValues);
+    }
+    endGame(winner) {
+        this.state.phase = 'ended';
+        this.state.winner = winner ? winner.id : null;
+        this.state.currentPlayer = null;
+        this.players.forEach(p => p.isCurrent = false);
+
+        if (winner) {
+            winner.chips += this.state.pot;
+            this.state.lastAction = `🏆 ${winner.name} 赢得 ${this.state.pot} 筹码！`;
+            this.state.handRank = this.evaluateHand(winner.hand);
+        } else {
+            this.state.lastAction = '游戏结束，平局';
+        }
+
+        this.started = false;
+    }
+
+    checkPlayerLeft(playerId) {
+        const player = this.players.find(p => p.id === playerId);
+        if (player && !player.folded && this.state.phase !== 'ended') {
+            player.folded = true;
+            const activePlayers = this.players.filter(p => !p.folded);
+            if (activePlayers.length === 1) {
+                this.endGame(activePlayers[0]);
+            } else if (this.state.currentPlayer === playerId) {
+                this.nextTurn();
+            }
+        }
+        return this.getState();
+    }
+}
+
+module.exports = { ZhaJinHua };
