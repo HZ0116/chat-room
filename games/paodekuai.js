@@ -322,8 +322,6 @@ class PaoDeKuai {
             return { type: PDK_CARD_TYPE.STRAIGHT, primaryValue: uniqueValues[uniqueValues.length - 1] };
         }
 
-        if (cards.length >= 6 && cards.length % 2 === 0) {
-            const pairVals = Object.keys(valueCounts).filter(k => valueCounts[k] === 2).map(Number).sort((a, b) => a - 
         // 连对
         if (cards.length >= 6 && cards.length % 2 === 0) {
             const pairVals = Object.keys(valueCounts).filter(k => valueCounts[k] === 2).map(Number).sort((a, b) => a - b);
