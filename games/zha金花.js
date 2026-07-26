@@ -1,399 +1,319 @@
-// zha金花.js - 炸金花游戏逻辑（完整版，测试全过）
-
-const { randomUUID } = require('crypto');
-
-// 牌型枚举
-const CARD_TYPE = {
-    HIGH_CARD: 0,      // 散牌
-    PAIR: 1,           // 对子
-    FLUSH: 2,          // 金花
-    STRAIGHT: 3,       // 顺子
-    STRAIGHT_FLUSH: 4, // 顺金
-    LEOPARD: 5         // 豹子
-};
-
-// 花色
-const SUIT = {
-    HEARTS: '♥',
-    DIAMONDS: '♦',
-    CLUBS: '♣',
-    SPADES: '♠'
-};
-
-// 点数
-const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-
+// games/zha金花.js - 炸金花游戏逻辑（完整版）
 class ZhaJinHua {
-    constructor(roomId, players, options = {}) {
+    constructor(roomId, players) {
         this.roomId = roomId;
-        this.players = players; // [{ id, name, ws }, ...]
-        this.baseBet = options.baseBet || 10;
-        this.maxBet = options.maxBet || 1000;
-        this.minPlayers = 2;
-        this.maxPlayers = 6;
-        
-        this.state = 'waiting'; // waiting | betting | ended
-        this.deck = [];
-        this.hands = new Map(); // playerId -> [{ suit, rank, value }]
-        this.chips = new Map(); // playerId -> chips
-        this.currentBet = this.baseBet;
-        this.pot = 0;
-        this.currentPlayerIndex = 0;
-        this.bets = new Map(); // playerId -> current round bet
-        this.folded = new Set();
-        this.allInPlayers = new Set();
-        this.roundCount = 0;
-        this.winner = null;
-        this.gameLog = [];
-        
-        this._initChips();
+        this.players = players.map(p => ({
+            id: p.id,
+            name: p.name,
+            chips: 1000,
+            bet: 0,
+            folded: false,
+            allin: false,
+            hand: [],
+            isDealer: false,
+            isCurrent: false
+        }));
+        this.state = {
+            phase: 'waiting', // waiting, preflop, flop, turn, river, showdown, ended
+            pot: 0,
+            currentPlayer: null,
+            lastAction: null,
+            deck: [],
+            communityCards: [],
+            players: this.players,
+            winner: null,
+            handRank: null
+        };
+        this.currentBet = 0;
+        this.minBet = 10;
+        this.dealerIndex = 0;
+        this.actionIndex = 0;
+        this.raiseCount = 0;
+        this.maxRaises = 4;
+        this.started = false;
     }
-    
-    _initChips() {
-        for (const p of this.players) {
-            this.chips.set(p.id, 1000);
-        }
-    }
-    
-    _createDeck() {
-        const deck = [];
-        const suits = [SUIT.HEARTS, SUIT.DIAMONDS, SUIT.CLUBS, SUIT.SPADES];
-        for (const suit of suits) {
-            for (let i = 0; i < RANKS.length; i++) {
-                deck.push({
-                    suit,
-                    rank: RANKS[i],
-                    value: i + 1 // A=1, K=13
-                });
-            }
-        }
-        return deck;
-    }
-    
-    _shuffle(deck) {
-        for (let i = deck.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [deck[i], deck[j]] = [deck[j], deck[i]];
-        }
-        return deck;
-    }
-    
+
+    // 启动游戏
     start() {
-        if (this.players.length < this.minPlayers) {
-            throw new Error(`至少需要${this.minPlayers}名玩家`);
-        }
-        if (this.players.length > this.maxPlayers) {
-            throw new Error(`最多${this.maxPlayers}名玩家`);
-        }
-        
-        this.state = 'betting';
-        this.deck = this._shuffle(this._createDeck());
-        this.hands.clear();
-        this.bets.clear();
-        this.folded.clear();
-        this.allInPlayers.clear();
-        this.pot = 0;
-        this.currentBet = this.baseBet;
-        this.roundCount = 0;
-        this.winner = null;
-        this.gameLog = [];
-        
-        // 每人发3张牌
-        for (const p of this.players) {
-            const hand = [this.deck.pop(), this.deck.pop(), this.deck.pop()];
-            this.hands.set(p.id, hand);
-        }
-        
-        this.currentPlayerIndex = 0;
-        this._log('游戏开始');
-        return this.getGameState();
-    }
-    
-    getCurrentPlayer() {
-        return this.players[this.currentPlayerIndex];
-    }
-    
-    _nextPlayer() {
-        let attempts = 0;
-        do {
-            this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
-            attempts++;
-        } while (
-            (this.folded.has(this.getCurrentPlayer().id) || 
-             this.allInPlayers.has(this.getCurrentPlayer().id)) &&
-            attempts <= this.players.length
-        );
-    }
-    
-    _checkRoundComplete() {
-        const activePlayers = this.players.filter(p => 
-            !this.folded.has(p.id) && !this.allInPlayers.has(p.id)
-        );
-        
-        if (activePlayers.length === 0) return true;
-        if (activePlayers.length === 1) return true;
-        
-        // 检查所有活跃玩家是否都已跟满当前注
-        return activePlayers.every(p => {
-            const playerBet = this.bets.get(p.id) || 0;
-            return playerBet >= this.currentBet;
+        if (this.started) throw new Error('游戏已开始');
+        if (this.players.length < 2) throw new Error('至少需要2名玩家');
+
+        this.started = true;
+        this.state.phase = 'preflop';
+        this.state.pot = 0;
+        this.currentBet = 0;
+        this.raiseCount = 0;
+
+        // 重置玩家状态
+        this.players.forEach(p => {
+            p.chips = 1000;
+            p.bet = 0;
+            p.folded = false;
+            p.allin = false;
+            p.hand = [];
+            p.isDealer = false;
+            p.isCurrent = false;
         });
+
+        // 洗牌发牌
+        this.shuffleDeck();
+        this.dealCards();
+
+        // 设置庄家和小盲大盲
+        this.setBlinds();
+
+        // 记录状态
+        this.state.players = this.players;
+        this.state.lastAction = '游戏开始';
+
+        return this.getState();
     }
-    
-    _checkGameEnd() {
-        const remaining = this.players.filter(p => !this.folded.has(p.id));
-        if (remaining.length === 1) {
-            this.winner = remaining[0];
-            this.state = 'ended';
-            this._log(`${this.winner.name} 获胜！`);
-            return true;
-        }
-        return false;
-    }
-    
-    bet(playerId, amount) {
-        if (this.state !== 'betting') {
-            throw new Error('游戏未在进行中');
-        }
-        
-        const player = this.players.find(p => p.id === playerId);
-        if (!player) throw new Error('玩家不存在');
-        if (this.getCurrentPlayer().id !== playerId) {
-            throw new Error('还没轮到你');
-        }
-        if (this.folded.has(playerId)) {
-            throw new Error('你已经弃牌');
-        }
-        
-        const playerChips = this.chips.get(playerId);
-        const playerCurrentBet = this.bets.get(playerId) || 0;
-        const totalBet = playerCurrentBet + amount;
-        
-        if (amount < this.currentBet - playerCurrentBet) {
-            throw new Error(`至少跟注 ${this.currentBet - playerCurrentBet}`);
-        }
-        if (amount > playerChips) {
-            throw new Error('筹码不足');
-        }
-        if (totalBet > this.maxBet) {
-            throw new Error(`单轮下注上限 ${this.maxBet}`);
-        }
-        
-        // 更新筹码和下注
-        this.chips.set(playerId, playerChips - amount);
-        this.bets.set(playerId, totalBet);
-        this.pot += amount;
-        
-        if (totalBet > this.currentBet) {
-            this.currentBet = totalBet;
-        }
-        
-        this._log(`${player.name} 下注 ${amount}，当前总下注 ${totalBet}`);
-        
-        if (this.chips.get(playerId) === 0) {
-            this.allInPlayers.add(playerId);
-            this._log(`${player.name} All In！`);
-        }
-        
-        if (this._checkGameEnd()) {
-            return this.end();
-        }
-        
-        if (this._checkRoundComplete()) {
-            this.roundCount++;
-        }
-        
-        this._nextPlayer();
-        return this.getGameState();
-    }
-    
-    call(playerId) {
-        const player = this.players.find(p => p.id === playerId);
-        const playerCurrentBet = this.bets.get(playerId) || 0;
-        const needed = this.currentBet - playerCurrentBet;
-        return this.bet(playerId, needed);
-    }
-    
-    raise(playerId, amount) {
-        // amount 是加注的金额（在跟注基础上额外加的）
-        const player = this.players.find(p => p.id === playerId);
-        const playerCurrentBet = this.bets.get(playerId) || 0;
-        const needed = this.currentBet - playerCurrentBet;
-        const totalRaise = needed + amount;
-        return this.bet(playerId, totalRaise);
-    }
-    
-    fold(playerId) {
-        if (this.state !== 'betting') {
-            throw new Error('游戏未在进行中');
-        }
-        
-        const player = this.players.find(p => p.id === playerId);
-        if (!player) throw new Error('玩家不存在');
-        if (this.getCurrentPlayer().id !== playerId) {
-            throw new Error('还没轮到你');
-        }
-        
-        this.folded.add(playerId);
-        this._log(`${player.name} 弃牌`);
-        
-        if (this._checkGameEnd()) {
-            return this.end();
-        }
-        
-        this._nextPlayer();
-        return this.getGameState();
-    }
-    
-    allIn(playerId) {
-        const playerChips = this.chips.get(playerId);
-        return this.bet(playerId, playerChips);
-    }
-    
-    compareHands(hand1, hand2) {
-        const eval1 = this._evaluateHand(hand1);
-        const eval2 = this._evaluateHand(hand2);
-        
-        if (eval1.type !== eval2.type) {
-            return eval1.type - eval2.type;
-        }
-        
-        // 同牌型比大小
-        for (let i = 0; i < eval1.values.length; i++) {
-            if (eval1.values[i] !== eval2.values[i]) {
-                return eval2.values[i] - eval1.values[i]; // 大的赢
+
+    // 洗牌
+    shuffleDeck() {
+        const suits = ['♠', '♥', '♦', '♣'];
+        const ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+        this.state.deck = [];
+        for (const suit of suits) {
+            for (const rank of ranks) {
+                this.state.deck.push({ suit, rank });
             }
         }
-        return 0;
-    }
-    
-    _evaluateHand(hand) {
-        const sorted = [...hand].sort((a, b) => b.value - a.value);
-        const values = sorted.map(c => c.value);
-        const suits = sorted.map(c => c.suit);
-        
-        const isFlush = suits.every(s => s === suits[0]);
-        const isStraight = this._isStraight(values);
-        const rankCounts = this._getRankCounts(values);
-        
-        // 豹子
-        if (Object.values(rankCounts).includes(3)) {
-            const triple = Object.keys(rankCounts).find(k => rankCounts[k] === 3);
-            return { type: CARD_TYPE.LEOPARD, values: [parseInt(triple)] };
+        // Fisher-Yates 洗牌
+        for (let i = this.state.deck.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [this.state.deck[i], this.state.deck[j]] = [this.state.deck[j], this.state.deck[i]];
         }
-        
-        // 顺金
-        if (isFlush && isStraight) {
-            return { type: CARD_TYPE.STRAIGHT_FLUSH, values: this._normalizeStraightValues(values) };
-        }
-        
-        // 金花
-        if (isFlush) {
-            return { type: CARD_TYPE.FLUSH, values };
-        }
-        
-        // 顺子
-        if (isStraight) {
-            return { type: CARD_TYPE.STRAIGHT, values: this._normalizeStraightValues(values) };
-        }
-        
-        // 对子
-        if (Object.values(rankCounts).includes(2)) {
-            const pair = Object.keys(rankCounts).find(k => rankCounts[k] === 2);
-            const kicker = Object.keys(rankCounts).find(k => rankCounts[k] === 1);
-            return { type: CARD_TYPE.PAIR, values: [parseInt(pair), parseInt(kicker)] };
-        }
-        
-        // 散牌
-        return { type: CARD_TYPE.HIGH_CARD, values };
-    }
-    
-        _normalizeStraightValues(values) {
-        const sorted = [...values].sort((a, b) => a - b);
-        // A-2-3 特殊顺子，按 3 算最大
-        if (sorted.includes(1) && sorted.includes(2) && sorted.includes(3)) {
-            return [3, 2, 1];
-        }
-        return sorted.reverse();
     }
 
-    _getRankCounts(values) {
-        const counts = {};
-        for (const v of values) {
-            counts[v] = (counts[v] || 0) + 1;
-        }
-        return counts;
-    }
-
-    end() {
-        if (this.state === 'ended') {
-            return this.getGameState();
-        }
-
-        // 只剩一人
-        const remaining = this.players.filter(p => !this.folded.has(p.id));
-        if (remaining.length === 1) {
-            this.winner = remaining[0];
-        } else {
-            // 比牌
-            let bestPlayer = remaining[0];
-            let bestHand = this.hands.get(bestPlayer.id);
-
-            for (let i = 1; i < remaining.length; i++) {
-                const player = remaining[i];
-                const hand = this.hands.get(player.id);
-                const result = this.compareHands(hand, bestHand);
-                if (result > 0) {
-                    bestHand = hand;
-                    bestPlayer = player;
-                }
+    // 发牌
+    dealCards() {
+        const activePlayers = this.players.filter(p => !p.folded);
+        for (let i = 0; i < 3; i++) {
+            for (const player of activePlayers) {
+                if (this.state.deck.length === 0) break;
+                const card = this.state.deck.pop();
+                player.hand.push(card);
             }
-            this.winner = bestPlayer;
         }
-
-        // 分配奖池
-        const winnerChips = this.chips.get(this.winner.id);
-        this.chips.set(this.winner.id, winnerChips + this.pot);
-
-        this.state = 'ended';
-        this._log(`${this.winner.name} 赢得 ${this.pot} 筹码！`);
-
-        return this.getGameState();
     }
 
-    getGameState(forPlayerId = null) {
-        const baseState = {
-            roomId: this.roomId,
-            state: this.state,
-            pot: this.pot,
-            currentBet: this.currentBet,
-            currentPlayerId: this.state === 'betting' ? this.getCurrentPlayer()?.id : null,
+    // 设置盲注
+    setBlinds() {
+        const activePlayers = this.players.filter(p => !p.folded);
+        if (activePlayers.length < 2) return;
+
+        // 庄家
+        this.dealerIndex = (this.dealerIndex + 1) % activePlayers.length;
+        activePlayers[this.dealerIndex].isDealer = true;
+
+        // 小盲
+        const sbIndex = (this.dealerIndex + 1) % activePlayers.length;
+        const sbPlayer = activePlayers[sbIndex];
+        const sbAmount = Math.min(5, sbPlayer.chips);
+        sbPlayer.chips -= sbAmount;
+        sbPlayer.bet = sbAmount;
+        this.state.pot += sbAmount;
+        this.currentBet = sbAmount;
+
+        // 大盲
+        const bbIndex = (this.dealerIndex + 2) % activePlayers.length;
+        const bbPlayer = activePlayers[bbIndex];
+        const bbAmount = Math.min(10, bbPlayer.chips);
+        bbPlayer.chips -= bbAmount;
+        bbPlayer.bet = bbAmount;
+        this.state.pot += bbAmount;
+        this.currentBet = bbAmount;
+
+        this.state.lastAction = `盲注: ${sbPlayer.name} ${sbAmount}, ${bbPlayer.name} ${bbAmount}`;
+
+        // 从大盲后一位开始
+        this.actionIndex = (bbIndex + 1) % activePlayers.length;
+        this.state.currentPlayer = activePlayers[this.actionIndex].id;
+        this.players.forEach(p => p.isCurrent = p.id === this.state.currentPlayer);
+    }
+
+    // 获取玩家手牌（用于广播）
+    getPlayerCards(playerId) {
+        const player = this.players.find(p => p.id === playerId);
+        return player ? player.hand : [];
+    }
+
+    // 获取玩家信息
+    getPlayerInfo(playerId) {
+        const player = this.players.find(p => p.id === playerId);
+        if (!player) return null;
+        return {
+            id: player.id,
+            name: player.name,
+            chips: player.chips,
+            bet: player.bet,
+            folded: player.folded,
+            allin: player.allin
+        };
+    }
+
+    // 获取游戏状态
+    getState() {
+        const state = {
+            phase: this.state.phase,
+            pot: this.state.pot,
+            currentPlayer: this.state.currentPlayer,
+            lastAction: this.state.lastAction,
             players: this.players.map(p => ({
                 id: p.id,
                 name: p.name,
-                chips: this.chips.get(p.id),
-                bet: this.bets.get(p.id) || 0,
-                folded: this.folded.has(p.id),
-                allIn: this.allInPlayers.has(p.id)
+                chips: p.chips,
+                bet: p.bet,
+                folded: p.folded,
+                allin: p.allin,
+                isDealer: p.isDealer,
+                isCurrent: p.isCurrent,
+                showCards: this.state.phase === 'ended' || p.folded
             })),
-            winner: this.winner ? { id: this.winner.id, name: this.winner.name } : null,
-            log: this.gameLog.slice(-10)
+            communityCards: this.state.communityCards || [],
+            winner: this.state.winner,
+            handRank: this.state.handRank
         };
+        return state;
+    }
 
-        if (forPlayerId) {
-            baseState.hand = this.hands.get(forPlayerId) || null;
-            baseState.canAct = this.state === 'betting' &&
-                this.getCurrentPlayer()?.id === forPlayerId &&
-                !this.folded.has(forPlayerId);
+    // 下注
+    bet(playerId, amount) {
+        if (this.state.phase === 'ended') throw new Error('游戏已结束');
+        if (this.state.currentPlayer !== playerId) throw new Error('不是你的回合');
+
+        const player = this.players.find(p => p.id === playerId);
+        if (!player) throw new Error('玩家不存在');
+        if (player.folded) throw new Error('玩家已弃牌');
+        if (amount < this.minBet) throw new Error(`下注至少 ${this.minBet}`);
+
+        const actualAmount = Math.min(amount, player.chips);
+        if (actualAmount <= 0) throw new Error('筹码不足');
+
+        player.chips -= actualAmount;
+        player.bet += actualAmount;
+        this.state.pot += actualAmount;
+        this.currentBet = Math.max(this.currentBet, actualAmount);
+        this.state.lastAction = `${player.name} 下注 ${actualAmount}`;
+
+        this.nextTurn();
+        return this.getState();
+    }
+
+    // 跟注
+    call(playerId) {
+        if (this.state.phase === 'ended') throw new Error('游戏已结束');
+        if (this.state.currentPlayer !== playerId) throw new Error('不是你的回合');
+
+        const player = this.players.find(p => p.id === playerId);
+        if (!player) throw new Error('玩家不存在');
+        if (player.folded) throw new Error('玩家已弃牌');
+
+        const callAmount = Math.min(this.currentBet - player.bet, player.chips);
+        if (callAmount < 0) throw new Error('无需跟注');
+
+        player.chips -= callAmount;
+        player.bet += callAmount;
+        this.state.pot += callAmount;
+        this.state.lastAction = `${player.name} 跟注 ${callAmount}`;
+
+        this.nextTurn();
+        return this.getState();
+    }
+
+    // 加注
+    raise(playerId, amount) {
+        if (this.state.phase === 'ended') throw new Error('游戏已结束');
+        if (this.state.currentPlayer !== playerId) throw new Error('不是你的回合');
+        if (this.raiseCount >= this.maxRaises) throw new Error('已达到最大加注次数');
+
+        const player = this.players.find(p => p.id === playerId);
+        if (!player) throw new Error('玩家不存在');
+        if (player.folded) throw new Error('玩家已弃牌');
+
+        const totalBet = this.currentBet + amount;
+        const raiseAmount = Math.min(totalBet - player.bet, player.chips);
+        if (raiseAmount <= 0) throw new Error('加注金额无效');
+
+        player.chips -= raiseAmount;
+        player.bet += raiseAmount;
+        this.state.pot += raiseAmount;
+        this.currentBet = player.bet;
+        this.raiseCount++;
+        this.state.lastAction = `${player.name} 加注 ${raiseAmount}`;
+
+        this.nextTurn();
+        return this.getState();
+    }
+
+    // 弃牌
+    fold(playerId) {
+        if (this.state.phase === 'ended') throw new Error('游戏已结束');
+        if (this.state.currentPlayer !== playerId) throw new Error('不是你的回合');
+
+        const player = this.players.find(p => p.id === playerId);
+        if (!player) throw new Error('玩家不存在');
+        if (player.folded) throw new Error('玩家已弃牌');
+
+        player.folded = true;
+        player.isCurrent = false;
+        this.state.lastAction = `${player.name} 弃牌`;
+
+        // 检查是否只剩一个玩家
+        const activePlayers = this.players.filter(p => !p.folded);
+        if (activePlayers.length === 1) {
+            this.endGame(activePlayers[0]);
+            return this.getState();
         }
 
-        return baseState;
+        this.nextTurn();
+        return this.getState();
     }
 
-    _log(message) {
-        const entry = `[${new Date().toLocaleTimeString()}] ${message}`;
-        this.gameLog.push(entry);
-    }
-}
+    // All-in
+    allIn(playerId) {
+        if (this.state.phase === 'ended') throw new Error('游戏已结束');
+        if (this.state.currentPlayer !== playerId) throw new Error('不是你的回合');
 
-module.exports = { ZhaJinHua, CARD_TYPE };
+        const player = this.players.find(p => p.id === playerId);
+        if (!player) throw new Error('玩家不存在');
+        if (player.folded) throw new Error('玩家已弃牌');
+
+        const allAmount = player.chips;
+        if (allAmount <= 0) throw new Error('没有筹码');
+
+        player.chips = 0;
+        player.bet += allAmount;
+        this.state.pot += allAmount;
+        player.allin = true;
+        this.currentBet = Math.max(this.currentBet, player.bet);
+        this.state.lastAction = `${player.name} All-in ${allAmount}`;
+
+        this.nextTurn();
+        return this.getState();
+    }
+
+    // 下一回合
+    nextTurn() {
+        const activePlayers = this.players.filter(p => !p.folded);
+        if (activePlayers.length === 1) {
+            this.endGame(activePlayers[0]);
+            return;
+        }
+
+        // 检查是否所有人都已行动（或all-in）
+        const allActed = activePlayers.every(p => 
+            p.allin || p.bet === this.currentBet || p.folded
+        );
+
+        if (allActed) {
+            // 进入下一阶段
+            this.nextStage();
+            return;
+        }
+
+        // 找下一个未行动的玩家
+        let nextIndex = (this.actionIndex + 1) % this.players.length;
+        let attempts = 0;
+        
