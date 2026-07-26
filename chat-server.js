@@ -270,4 +270,159 @@ function handleJoin(client, msg) {
         player: { id: client.id, name }
     }, client.id);
 }
+function handleChat(client, msg) {
+    if (!client.roomId) return;
+
+    broadcast(client.roomId, {
+        type: 'chat',
+        from: { id: client.id, name: client.name },
+        content: String(msg.content || '').slice(0, 500),
+        time: Date.now()
+    }, client.id);
+}
+
+function handleStartGame(client, msg) {
+    const room = rooms.get(client.roomId);
+    if (!room) return;
+
+    const gameType = msg.gameType;
+
+    if (games.has(client.roomId)) {
+        sendToClient(client, { type: 'error', message: '游戏正在进行中' });
+        return;
+    }
+
+    try {
+        let game;
+        if (gameType === 'zhajinhua') {
+            if (room.players.length < 2) {
+                sendToClient(client, { type: 'error', message: '炸金花至少需要2人' });
+                return;
+            }
+            game = new ZhaJinHua(client.roomId, room.players);
+        } else if (gameType === 'paodekuai') {
+            if (room.players.length < 3) {
+                sendToClient(client, { type: 'error', message: '跑得快需要3或4人' });
+                return;
+            }
+            game = new PaoDeKuai(client.roomId, room.players);
+        } else {
+            sendToClient(client, { type: 'error', message: '未知游戏类型' });
+            return;
+        }
+
+        const initialState = game.start();
+        games.set(client.roomId, { game, type: gameType });
+        room.game = game;
+        room.gameType = gameType;
+
+        broadcastGameState(game, client.roomId);
+
+        broadcast(client.roomId, {
+            type: 'game_started',
+            gameType
+        });
+
+    } catch (e) {
+        sendToClient(client, { type: 'error', message: e.message });
+    }
+}
+
+function handleGameAction(client, msg) {
+    const gameWrapper = games.get(client.roomId);
+    if (!gameWrapper) {
+        sendToClient(client, { type: 'error', message: '没有正在进行的游戏' });
+        return;
+    }
+
+    const { game } = gameWrapper;
+
+    try {
+        let result;
+        switch (msg.action) {
+            case 'bet':
+                result = game.bet(client.id, msg.amount);
+                break;
+            case 'call':
+                result = game.call(client.id);
+                break;
+            case 'raise':
+                result = game.raise(client.id, msg.amount);
+                break;
+            case 'fold':
+                result = game.fold(client.id);
+                break;
+            case 'allin':
+                result = game.allIn(client.id);
+                break;
+            case 'play':
+                result = game.play(client.id, msg.cards);
+                break;
+            case 'pass':
+                result = game.pass(client.id);
+                break;
+            default:
+                sendToClient(client, { type: 'error', message: '未知操作' });
+                return;
+        }
+
+        broadcastGameState(game, client.roomId);
+
+        if (result.state === 'ended') {
+            games.delete(client.roomId);
+            const room = rooms.get(client.roomId);
+            if (room) {
+                room.game = null;
+                room.gameType = null;
+            }
+        }
+
+    } catch (e) {
+        sendToClient(client, { type: 'error', message: e.message });
+    }
+}
+
+function broadcastGameState(game, roomId) {
+    const room = rooms.get(roomId);
+    if (!room) return;
+
+    for (const player of room.players) {
+        const client = Array.from(clients.values()).find(c => c.id === player.id);
+        if (!client) continue;
+
+        const state = game.getGameState(player.id);
+        sendToClient(client, {
+            type: 'game_state',
+            state
+        });
+    }
+}
+
+function leaveRoom(client) {
+    if (!client.roomId) return;
+
+    const room = rooms.get(client.roomId);
+    if (room) {
+        room.players = room.players.filter(p => p.id !== client.id);
+
+        broadcast(client.roomId, {
+            type: 'player_left',
+            playerId: client.id
+        });
+
+        if (room.players.length === 0) {
+            rooms.delete(client.roomId);
+            games.delete(client.roomId);
+        }
+    }
+
+    client.roomId = null;
+}
+
+// 启动服务器
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`聊天室已启动 → http://0.0.0.0:${PORT}`);
+    console.log('支持多房间、实时消息、游戏系统');
+});
+
 
