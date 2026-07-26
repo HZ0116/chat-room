@@ -693,7 +693,7 @@
 
     <script>
         // ================================================================
-        //  JavaScript - 完整客户端
+        //  JavaScript - 完整客户端（修复版）
         // ================================================================
 
         // ---------- DOM 引用 ----------
@@ -908,7 +908,7 @@
                     log('未处理的消息类型:', data.type);
             }
         }
-        // ---------- 渲染游戏 ----------
+        // ---------- 渲染游戏（修复版） ----------
         function renderGame(data) {
             if (!data || !data.state) {
                 gameContent.innerHTML = `<div class="game-status">💡 点击上方按钮开始游戏</div>`;
@@ -917,14 +917,20 @@
 
             const state = data.state;
             const myCards = data.myCards || [];
-            const myInfo = data.myInfo || {};
 
             let html = '';
+
+            // 获取当前玩家名字
+            let currentPlayerName = '未知';
+            if (state.currentPlayer && state.players) {
+                const found = state.players.find(p => p.id === state.currentPlayer);
+                if (found) currentPlayerName = found.name;
+            }
 
             html += `<div class="game-status">`;
             html += `🎯 ${state.phase || '进行中'} `;
             if (state.pot) html += `| 底池: 🪙 ${state.pot}`;
-            if (state.currentPlayer) html += ` | 当前: ${state.currentPlayer}`;
+            if (state.currentPlayer) html += ` | 当前: ${currentPlayerName}`;
             if (state.lastAction) html += ` | ${state.lastAction}`;
             html += `</div>`;
 
@@ -967,17 +973,14 @@
                 html += `</div>`;
             }
 
-            if (myCards && myCards.length > 0 && !gameType === 'paodekuai') {
-                html += `<div style="margin-top:8px;font-size:13px;color:rgba(255,255,255,0.5);">我的手牌:</div>`;
-                html += `<div class="p-cards" style="display:flex;gap:4px;margin-top:4px;">`;
-                myCards.forEach(c => {
-                    const isRed = c.suit === '♥' || c.suit === '♦';
-                    html += `<div class="game-card ${isRed ? 'red' : 'black'}">${c.rank}${c.suit}</div>`;
-                });
-                html += `</div>`;
-            }
+            // ========== 关键修复：判断是否轮到我 ==========
+            // 用玩家列表中的ID匹配，确保准确
+            const isMyTurn = state.players && 
+                state.players.some(p => p.id === myId && p.id === state.currentPlayer) && 
+                state.phase !== 'ended';
 
-            const isMyTurn = state.currentPlayer === myId && state.phase !== 'ended';
+            log('是否轮到我:', isMyTurn, '我的ID:', myId, '当前玩家:', state.currentPlayer);
+
             if (isMyTurn) {
                 html += `<div class="game-actions">`;
                 if (gameType === 'zhajinhua') {
@@ -995,6 +998,8 @@
                     `;
                 }
                 html += `</div>`;
+            } else if (state.phase !== 'ended') {
+                html += `<div style="margin-top:12px;color:rgba(255,255,255,0.3);font-size:13px;">⏳ 等待 ${currentPlayerName} 操作...</div>`;
             }
 
             gameContent.innerHTML = html;
@@ -1080,7 +1085,20 @@
             }
         })();
 
-        log('红中密聊 v2.0 已加载');
+        // ---------- 调试：在页面上显示我的ID ----------
+        (function showDebugInfo() {
+            const debug = new URLSearchParams(window.location.search).has('debug');
+            if (debug) {
+                setTimeout(() => {
+                    const div = document.createElement('div');
+                    div.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,0.9);color:#0f0;padding:10px;font-size:12px;z-index:9999;word-break:break-all;';
+                    div.innerHTML = `🔍 调试信息<br>我的ID: ${myId || '未设置'}<br>当前玩家: ${gameState?.currentPlayer || '无'}`;
+                    document.body.appendChild(div);
+                }, 2000);
+            }
+        })();
+
+        log('红中密聊 v2.0 已加载（修复版）');
         log('GitHub: https://github.com/HZ0116/chat-room');
     </script>
 </body>
