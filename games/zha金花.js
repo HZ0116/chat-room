@@ -14,7 +14,7 @@ class ZhaJinHua {
             isCurrent: false
         }));
         this.state = {
-            phase: 'waiting', // waiting, preflop, flop, turn, river, showdown, ended
+            phase: 'waiting',
             pot: 0,
             currentPlayer: null,
             lastAction: null,
@@ -33,7 +33,6 @@ class ZhaJinHua {
         this.started = false;
     }
 
-    // 启动游戏
     start() {
         if (this.started) throw new Error('游戏已开始');
         if (this.players.length < 2) throw new Error('至少需要2名玩家');
@@ -44,7 +43,6 @@ class ZhaJinHua {
         this.currentBet = 0;
         this.raiseCount = 0;
 
-        // 重置玩家状态
         this.players.forEach(p => {
             p.chips = 1000;
             p.bet = 0;
@@ -55,21 +53,16 @@ class ZhaJinHua {
             p.isCurrent = false;
         });
 
-        // 洗牌发牌
         this.shuffleDeck();
         this.dealCards();
-
-        // 设置庄家和小盲大盲
         this.setBlinds();
 
-        // 记录状态
         this.state.players = this.players;
         this.state.lastAction = '游戏开始';
 
         return this.getState();
     }
 
-    // 洗牌
     shuffleDeck() {
         const suits = ['♠', '♥', '♦', '♣'];
         const ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -79,14 +72,12 @@ class ZhaJinHua {
                 this.state.deck.push({ suit, rank });
             }
         }
-        // Fisher-Yates 洗牌
         for (let i = this.state.deck.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [this.state.deck[i], this.state.deck[j]] = [this.state.deck[j], this.state.deck[i]];
         }
     }
 
-    // 发牌
     dealCards() {
         const activePlayers = this.players.filter(p => !p.folded);
         for (let i = 0; i < 3; i++) {
@@ -98,16 +89,13 @@ class ZhaJinHua {
         }
     }
 
-    // 设置盲注
     setBlinds() {
         const activePlayers = this.players.filter(p => !p.folded);
         if (activePlayers.length < 2) return;
 
-        // 庄家
         this.dealerIndex = (this.dealerIndex + 1) % activePlayers.length;
         activePlayers[this.dealerIndex].isDealer = true;
 
-        // 小盲
         const sbIndex = (this.dealerIndex + 1) % activePlayers.length;
         const sbPlayer = activePlayers[sbIndex];
         const sbAmount = Math.min(5, sbPlayer.chips);
@@ -116,7 +104,6 @@ class ZhaJinHua {
         this.state.pot += sbAmount;
         this.currentBet = sbAmount;
 
-        // 大盲
         const bbIndex = (this.dealerIndex + 2) % activePlayers.length;
         const bbPlayer = activePlayers[bbIndex];
         const bbAmount = Math.min(10, bbPlayer.chips);
@@ -127,19 +114,16 @@ class ZhaJinHua {
 
         this.state.lastAction = `盲注: ${sbPlayer.name} ${sbAmount}, ${bbPlayer.name} ${bbAmount}`;
 
-        // 从大盲后一位开始
         this.actionIndex = (bbIndex + 1) % activePlayers.length;
         this.state.currentPlayer = activePlayers[this.actionIndex].id;
         this.players.forEach(p => p.isCurrent = p.id === this.state.currentPlayer);
     }
 
-    // 获取玩家手牌（用于广播）
     getPlayerCards(playerId) {
         const player = this.players.find(p => p.id === playerId);
         return player ? player.hand : [];
     }
 
-    // 获取玩家信息
     getPlayerInfo(playerId) {
         const player = this.players.find(p => p.id === playerId);
         if (!player) return null;
@@ -153,7 +137,6 @@ class ZhaJinHua {
         };
     }
 
-    // 获取游戏状态
     getState() {
         const state = {
             phase: this.state.phase,
@@ -178,7 +161,6 @@ class ZhaJinHua {
         return state;
     }
 
-    // 下注
     bet(playerId, amount) {
         if (this.state.phase === 'ended') throw new Error('游戏已结束');
         if (this.state.currentPlayer !== playerId) throw new Error('不是你的回合');
@@ -201,7 +183,6 @@ class ZhaJinHua {
         return this.getState();
     }
 
-    // 跟注
     call(playerId) {
         if (this.state.phase === 'ended') throw new Error('游戏已结束');
         if (this.state.currentPlayer !== playerId) throw new Error('不是你的回合');
@@ -222,7 +203,6 @@ class ZhaJinHua {
         return this.getState();
     }
 
-    // 加注
     raise(playerId, amount) {
         if (this.state.phase === 'ended') throw new Error('游戏已结束');
         if (this.state.currentPlayer !== playerId) throw new Error('不是你的回合');
@@ -247,7 +227,6 @@ class ZhaJinHua {
         return this.getState();
     }
 
-    // 弃牌
     fold(playerId) {
         if (this.state.phase === 'ended') throw new Error('游戏已结束');
         if (this.state.currentPlayer !== playerId) throw new Error('不是你的回合');
@@ -260,7 +239,6 @@ class ZhaJinHua {
         player.isCurrent = false;
         this.state.lastAction = `${player.name} 弃牌`;
 
-        // 检查是否只剩一个玩家
         const activePlayers = this.players.filter(p => !p.folded);
         if (activePlayers.length === 1) {
             this.endGame(activePlayers[0]);
@@ -271,7 +249,6 @@ class ZhaJinHua {
         return this.getState();
     }
 
-    // All-in
     allIn(playerId) {
         if (this.state.phase === 'ended') throw new Error('游戏已结束');
         if (this.state.currentPlayer !== playerId) throw new Error('不是你的回合');
@@ -294,7 +271,6 @@ class ZhaJinHua {
         return this.getState();
     }
 
-    // 下一回合
     nextTurn() {
         const activePlayers = this.players.filter(p => !p.folded);
         if (activePlayers.length === 1) {
@@ -302,18 +278,23 @@ class ZhaJinHua {
             return;
         }
 
-        // 检查是否所有人都已行动（或all-in）
-        const allActed = activePlayers.every(p => 
+        const allActed = activePlayers.every(p =>
             p.allin || p.bet === this.currentBet || p.folded
         );
 
         if (allActed) {
-            // 进入下一阶段
             this.nextStage();
             return;
         }
 
-        // 找下一个未行动的玩家
         let nextIndex = (this.actionIndex + 1) % this.players.length;
         let attempts = 0;
-        
+        while (attempts < this.players.length) {
+            const candidate = this.players[nextIndex];
+            if (!candidate.folded && !candidate.allin && candidate.bet < this.currentBet) {
+                this.actionIndex = nextIndex;
+                this.state.currentPlayer = candidate.id;
+                this.players.forEach(p => p.isCurrent = p.id === this.state.currentPlayer);
+                return;
+            }
+            nextIndex = (nextIndex + 1) % this.player
